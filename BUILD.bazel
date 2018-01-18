@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "doc.go",
+        "header.go",
+        "lz4.go",
+        "lz4_hc.go",
+    ],
+    cgo = True,
+    copts = [  # dunno if this does anything when c files are built elsewhere but it's here just in case
+        "-O3",
+    ],
+    importpath = "github.com/DataDog/golz4",
+    visibility = ["//visibility:public"],
+    cdeps = ["//src:lz4"],
+)

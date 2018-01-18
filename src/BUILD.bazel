@@ -1,0 +1,17 @@
+cc_library(
+    name = "lz4",
+    srcs = [
+        "lz4.c",
+        "lz4hc.c",
+    ],
+    hdrs = [
+        "lz4.h",
+        "lz4.c",
+        "lz4hc.h",
+        "lz4hc.c",
+    ],
+    copts = [
+        "-O3",
+    ],
+    visibility = ["//:__pkg__"],
+)
