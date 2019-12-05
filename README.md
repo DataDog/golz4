@@ -8,7 +8,7 @@ Golang interface to LZ4 compression.
 Forked from `github.com/cloudflare/golz4` but with significant differences:
 
 * input/output arg order has been swapped to follow Go convention, ie `Compress(in, out)` -> `Compress(out, in)`
-* lz4 131 used which fixes [several segfaults](https://github.com/cloudflare/golz4/pull/7)
+* builds against the liblz4 that it detects using pkgconfig
 
 Benchmark 
 ```

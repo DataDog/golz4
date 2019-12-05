@@ -1,8 +1,8 @@
 package lz4
 
-// #cgo CFLAGS: -O3
-// #include "src/lz4.h"
-// #include "src/lz4.c"
+// #cgo pkg-config: liblz4
+// #include <lz4.h>
+// #include <stdlib.h>
 import "C"
 
 import (
