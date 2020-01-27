@@ -514,26 +514,23 @@ func BenchmarkStreamUncompress(b *testing.B) {
 	b.ReportAllocs()
 
 	var buffer bytes.Buffer
-	localBuffer := make([]byte, streamingBlockSize)
-	rand.Read(localBuffer[:])
-
 	w := NewWriter(&buffer)
-
-	_, err := w.Write(localBuffer)
+	_, err := io.CopyN(w, rand.Reader, streamingBlockSize*1024)
 	if err != nil {
 		b.Fatalf("Failed writing to compress object: %s", err)
 	}
 	w.Close()
 
+	var localBuffer [streamingBlockSize]byte
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r := NewReader(&buffer)
 		for {
-			read, err := r.Read(localBuffer)
+			read, err := r.Read(localBuffer[:])
 			if err == io.EOF {
 				break
 			}
-			if err != io.EOF && err != nil {
+			if err != nil {
 				b.Fatalf("Failed to decompress: %s", err)
 			}
 			b.SetBytes(int64(read))
