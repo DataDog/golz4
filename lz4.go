@@ -140,11 +140,9 @@ func (w *Writer) Close() error {
 // reader is an io.ReadCloser that decompresses when read from.
 type reader struct {
 	lz4Stream        *C.LZ4_streamDecode_t
-	pending          []byte
-	left             unsafe.Pointer
-	right            unsafe.Pointer
 	underlyingReader io.Reader
-	isLeft           bool
+	pending          []byte
+	buffers          *doubleBuffer
 }
 
 // NewReader creates a new io.ReadCloser.  Reads from the returned ReadCloser
@@ -155,17 +153,7 @@ func NewReader(r io.Reader) io.ReadCloser {
 	return &reader{
 		lz4Stream:        C.LZ4_createStreamDecode(),
 		underlyingReader: r,
-		isLeft:           true,
-		// As per lz4 docs:
-		//
-		//   *_continue() :
-		//     These decoding functions allow decompression of multiple blocks in "streaming" mode.
-		//     Previously decoded blocks must still be available at the memory position where they were decoded.
-		//
-		// double buffer needs to use C.malloc to make sure the same memory address
-		// allocate buffers in go memory will fail randomly since GC may move the memory
-		left:  C.malloc(boundedStreamingBlockSize),
-		right: C.malloc(boundedStreamingBlockSize),
+		buffers:          newDoubleBuffer(boundedStreamingBlockSize),
 	}
 }
 
@@ -177,8 +165,7 @@ func (r *reader) Close() error {
 		r.lz4Stream = nil
 	}
 
-	C.free(r.left)
-	C.free(r.right)
+	r.buffers.Free()
 	return nil
 }
 
@@ -195,41 +182,32 @@ func (r *reader) Read(dst []byte) (int, error) {
 	}
 
 	// read blockSize from r.underlyingReader --> readBuffer
-	var uncompressedBuf [boundedStreamingBlockSize]byte
-	_, err = io.ReadFull(r.underlyingReader, uncompressedBuf[:blockSize])
+	var readBuffer [boundedStreamingBlockSize]byte
+	_, err = io.ReadFull(r.underlyingReader, readBuffer[:blockSize])
 	if err != nil {
 		return 0, err
 	}
-
-	var ptr unsafe.Pointer
-	if r.isLeft {
-		ptr = r.left
-		r.isLeft = false
-	} else {
-		ptr = r.right
-		r.isLeft = true
-	}
+	buf := r.buffers.NextBuffer()
 
 	decompressed := int(C.LZ4_decompress_safe_continue(
 		r.lz4Stream,
-		(*C.char)(unsafe.Pointer(&uncompressedBuf[0])),
-		(*C.char)(ptr),
+		p(readBuffer[:]),
+		p(buf),
 		C.int(blockSize),
-		C.int(streamingBlockSize),
+		C.int(cap(buf)),
 	))
 
 	if decompressed < 0 {
 		return decompressed, errors.New("error decompressing")
 	}
 	// fmt.Println(hex.EncodeToString(ptr[:]))
-	mySlice := C.GoBytes(ptr, C.int(decompressed))
 	copySize := min(decompressed, len(dst))
 
-	copied := copy(dst, mySlice[:copySize])
+	copied := copy(dst, buf[:copySize])
 
 	if decompressed > len(dst) {
 		// Save data for future reads
-		r.pending = mySlice[copied:]
+		r.pending = buf[copied:decompressed]
 	}
 
 	return copied, nil
