@@ -76,6 +76,31 @@ func TestEmptyCompressionHdr(t *testing.T) {
 	}
 }
 
+func TestUncompressHdrShort(t *testing.T) {
+	// calling Uncompress(Alloc)Hdr with input that is too short should return an error, not panic
+	output := make([]byte, 1)
+	for i := 0; i < 4; i++ {
+		tooShortInput := make([]byte, i)
+		out2, err := UncompressAllocHdr(output, tooShortInput)
+		if err != errTooShort {
+			t.Errorf("UncompressAllocHdr(output, [%d zero bytes]) returned unexpected err=%v",
+				len(tooShortInput), err)
+		}
+		// UncompressAllocHdr should always returns its first argument
+		// sadly slice identity is hard; cheat with Sprintf("%p")
+		if fmt.Sprintf("%p", out2) != fmt.Sprintf("%p", output) {
+			t.Errorf("UncompressAllocHdr([%p], [%d zero bytes]) returned output=%p",
+				output, len(tooShortInput), out2)
+		}
+
+		err = UncompressHdr(output, tooShortInput)
+		if err != errTooShort {
+			t.Errorf("UncompressHdr(output, [%d zero bytes]) returned unexpected err=%v",
+				len(tooShortInput), err)
+		}
+	}
+}
+
 // test python interoperability
 
 // pymod returns whether or not a python module is importable.  For checking

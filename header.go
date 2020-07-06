@@ -6,6 +6,7 @@ package lz4
 
 import (
 	"encoding/binary"
+	"errors"
 )
 
 // CompressBoundHdr returns the upper bounds of the size of the compressed
@@ -37,24 +38,32 @@ func CompressAllocHdr(in []byte) (out []byte, err error) {
 	return out[:count], nil
 }
 
+var errTooShort = errors.New("input too short to contain a length header")
+
 // UncompressHdr uncompresses in into out.  Out must have enough space allocated
 // for the uncompressed message.
 func UncompressHdr(out, in []byte) error {
+	if len(in) < 4 {
+		return errTooShort
+	}
 	_, err := Uncompress(out, in[4:])
 	return err
 }
 
 // UncompressAllocHdr uncompresses the stream from in into out if out has enough
 // space.  Otherwise, a new slice is allocated automatically and returned.
-// This function uses the "length header" to detemrine how much space is
-// necessary fo the result message, which CloudFlare's implementation doesn't
+// This function uses the "length header" to determine how much space is
+// necessary for the result message, which CloudFlare's implementation doesn't
 // have.
 func UncompressAllocHdr(out, in []byte) ([]byte, error) {
+	if len(in) < 4 {
+		return out, errTooShort
+	}
 	origlen := binary.LittleEndian.Uint32(in)
 	if origlen > uint32(len(out)) {
 		out = make([]byte, origlen)
 	}
-	err := UncompressHdr(out, in)
+	_, err := Uncompress(out, in[4:])
 	return out, err
 }
 
