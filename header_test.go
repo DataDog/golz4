@@ -106,7 +106,7 @@ func TestUncompressHdrShort(t *testing.T) {
 // pymod returns whether or not a python module is importable.  For checking
 // whether or not we can test the python lz4 interop
 func pymod(module string) bool {
-	cmd := exec.Command("python", "-c", fmt.Sprintf("import %s", module))
+	cmd := exec.Command("python3", "-c", fmt.Sprintf("import %s", module))
 	err := cmd.Run()
 	if err != nil {
 		return false
@@ -124,7 +124,7 @@ func TestPythonIntegration(t *testing.T) {
 }
 
 func TestPythonInterop(t *testing.T) {
-	pycompat := pymod("lz4")
+	pycompat := pymod("lz4.block")
 
 	if !pycompat {
 		t.Log("Warning: not testing python module compat: no module lz4 found")
@@ -162,7 +162,7 @@ func TestPythonInterop(t *testing.T) {
 // lz4 library returns the correct length.
 func pythonLz4Compat(path string, length int) error {
 	var out bytes.Buffer
-	cmd := exec.Command("python", "-c", fmt.Sprintf(`import lz4; print len(lz4.loads(open("%s", "rb").read()))`, path))
+	cmd := exec.Command("python3", "-c", fmt.Sprintf(`import lz4.block; print(len(lz4.block.decompress(open("%s", "rb").read())))`, path))
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	err := cmd.Run()
