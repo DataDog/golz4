@@ -274,6 +274,7 @@ func testIOCopy(t *testing.T, src io.Reader, filename string) {
 
 	failOnError(t, "Failed to close compress object", writer.Close())
 	stat, err := os.Stat(fname)
+	failOnError(t, "Stat failed", err)
 	filenameSize, err := os.Stat(filename)
 	failOnError(t, "Cannot open file", err)
 
@@ -303,7 +304,9 @@ func testIOCopy(t *testing.T, src io.Reader, filename string) {
 	failOnError(t, "Failed writing to file", err)
 
 	fileOriginstats, err := os.Stat(filename)
+	failOnError(t, "Stat failed", err)
 	fiNewStats, err := fileNew.Stat()
+	failOnError(t, "Stat failed", err)
 	if fileOriginstats.Size() != fiNewStats.Size() {
 		t.Fatalf("Not same size files: %d != %d", fileOriginstats.Size(), fiNewStats.Size())
 
@@ -348,8 +351,9 @@ func TestDecompConcurrently(t *testing.T) {
 
 	failOnError(t, "Failed to close compress object", writer.Close())
 	stat, err := os.Stat(filename)
+	failOnError(t, "Stat failed", err)
 	filenameSize, err := os.Stat(filename)
-	failOnError(t, "Cannot open file", err)
+	failOnError(t, "Stat failed", err)
 
 	t.Logf("Compressed %v -> %v bytes", filenameSize.Size(), stat.Size())
 
@@ -442,14 +446,14 @@ func TestStreamingFuzz(t *testing.T) {
 	f := func(input []byte) bool {
 		var w bytes.Buffer
 		writer := NewWriter(&w)
-		n, err := writer.Write(input)
+		_, err := writer.Write(input)
 		failOnError(t, "Failed writing to compress object", err)
 		failOnError(t, "Failed to close compress object", writer.Close())
 
 		// Decompress
 		r := NewReader(&w)
 		dst := make([]byte, len(input))
-		n, err = r.Read(dst)
+		n, err := r.Read(dst)
 
 		failOnError(t, "Failed Read", err)
 
