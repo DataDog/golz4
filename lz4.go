@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"unsafe"
 )
 
@@ -153,13 +152,7 @@ func (w *Writer) writeFrame(src []byte) (int, error) {
 }
 
 func (w *Writer) nextInputBuffer() []byte {
-	w.inpBufIndex = (w.inpBufIndex + 1) % 2
-	var result []byte
-	resultHeader := (*reflect.SliceHeader)(unsafe.Pointer(&result))
-	resultHeader.Data = uintptr(w.compressionBuffer[w.inpBufIndex])
-	resultHeader.Len = streamingBlockSize
-	resultHeader.Cap = streamingBlockSize
-	return result
+	return unsafe.Slice((*byte)(w.compressionBuffer[w.inpBufIndex]), streamingBlockSize)
 }
 
 // Close releases all the resources occupied by Writer.
@@ -501,10 +494,5 @@ func (r *DecompressReader) readSize(rdr io.Reader) (int, error) {
 }
 
 func ptrToByteSlice(dataPtr unsafe.Pointer, _len, _cap int) []byte {
-	var result []byte
-	resultHeader := (*reflect.SliceHeader)(unsafe.Pointer(&result))
-	resultHeader.Data = uintptr(dataPtr)
-	resultHeader.Len = _len
-	resultHeader.Cap = _cap
-	return result
+	return unsafe.Slice((*byte)(dataPtr), _len)
 }
