@@ -76,6 +76,7 @@ func Compress(out, in []byte) (outSize int, err error) {
 // Writer is an io.WriteCloser that lz4 compress its input.
 type Writer struct {
 	compressionBuffer      [2]unsafe.Pointer
+	mallocBuffer           unsafe.Pointer
 	lz4Stream              *C.LZ4_stream_t
 	underlyingWriter       io.Writer
 	inpBufIndex            int
@@ -85,13 +86,31 @@ type Writer struct {
 // NewWriter creates a new Writer. Writes to
 // the writer will be written in compressed form to w.
 func NewWriter(w io.Writer) *Writer {
+	// The input buffers MUST NOT be contiguous in memory. LZ4_compress_fast_continue has the
+	// following comment:
+	//
+	// When input is structured as a double-buffer, each buffer can have any size, including < 64 KB.
+	// Make sure that buffers are separated, by at least one byte.
+	//
+	// If the buffers are contiguous, then LZ4 assumes small writes can be "combined" for better
+	// compression. For example, Write(65536); Write(1000). For the second block, it will look back
+	// 64 kiB into the previous block. This means when decompressing, you will need
+	// to similarly keep the buffers contiguous in memory. This code was written assuming the buffers
+	// are separate. With glibc on Linux, it appears that malloc will usually allocate the buffers
+	// with some space between them. However, on Mac OS X, the buffers are often contiguous.
+	// See: https://github.com/lz4/lz4/issues/473#issuecomment-366537441
+
+	// separate the buffers by 8 bytes, so LZ4 treats them as separate. 8 bytes means the buffer
+	// start is 8 byte aligned, which may permit optimizations on 64-bit CPUs.
+	mallocBuffer := C.malloc(2*streamingBlockSize + 8)
+	buffer1 := mallocBuffer
+	buffer2 := unsafe.Pointer(uintptr(mallocBuffer) + streamingBlockSize + 8)
+
 	return &Writer{
-		compressionBuffer: [2]unsafe.Pointer{
-			C.malloc(streamingBlockSize),
-			C.malloc(streamingBlockSize),
-		},
-		lz4Stream:        C.LZ4_createStream(),
-		underlyingWriter: w,
+		compressionBuffer: [2]unsafe.Pointer{buffer1, buffer2},
+		mallocBuffer:      mallocBuffer,
+		lz4Stream:         C.LZ4_createStream(),
+		underlyingWriter:  w,
 	}
 }
 
@@ -152,6 +171,7 @@ func (w *Writer) writeFrame(src []byte) (int, error) {
 }
 
 func (w *Writer) nextInputBuffer() []byte {
+	w.inpBufIndex = (w.inpBufIndex + 1) % 2
 	return unsafe.Slice((*byte)(w.compressionBuffer[w.inpBufIndex]), streamingBlockSize)
 }
 
@@ -161,9 +181,9 @@ func (w *Writer) Close() error {
 	if w.lz4Stream != nil {
 		C.LZ4_freeStream(w.lz4Stream)
 		w.lz4Stream = nil
+		C.free(w.mallocBuffer)
+		w.mallocBuffer = nil
 	}
-	C.free(w.compressionBuffer[0])
-	C.free(w.compressionBuffer[1])
 	return nil
 }
 

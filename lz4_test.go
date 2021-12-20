@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"testing"
 	"testing/quick"
+	"time"
 )
 
 var plaintext0 = []byte("jkoedasdcnegzb.,ewqegmovobspjikodecedegds[]")
@@ -232,6 +234,60 @@ func TestSimpleCompressDecompress(t *testing.T) {
 
 	if bufOut.String() != data.String() {
 		t.Fatalf("Decompressed output != input: %q != %q", bufOut.String(), data)
+	}
+}
+
+func TestWriterCompressDecompressSplits(t *testing.T) {
+	// Test random write sizes. This found a bug where we were incorrectly reusing a buffer.
+	// Write 3 full streaming blocks split into 4 different chunks. This should exercise various
+	// combinations of full block writes and smaller writes
+	in := make([]byte, streamingBlockSize*3)
+	for i := range in {
+		in[i] = byte(i)
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	const numSplitPoints = 3
+	for i := 0; i < 2000; i++ {
+		w := bytes.NewBuffer(nil)
+		wc := NewWriter(w)
+
+		// write as separate randomly-sized blocks
+		// Note: The first blocks are likely to be larger than the last blocks; unclear if this matters
+		lastIndex := 0
+		splits := make([]int, 0, numSplitPoints)
+		for j := 0; j < numSplitPoints; j++ {
+			bytesRemaining := len(in) - lastIndex
+			nextIndex := lastIndex + rng.Intn(bytesRemaining)
+			splits = append(splits, nextIndex)
+			_, err := wc.Write(in[lastIndex:nextIndex])
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			lastIndex = nextIndex
+		}
+		_, err := wc.Write(in[lastIndex:])
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = wc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Decompress
+		bufOut := bytes.NewBuffer(nil)
+		r := NewReader(w)
+		_, err = io.Copy(bufOut, r)
+		failOnError(t, "Failed writing to file", err)
+		if !bytes.Equal(bufOut.Bytes(), in) {
+			t.Fatalf("Decompressed output != input; splits=%#v", splits)
+		}
+		err = r.Close()
+		if err != nil {
+			t.Fatal("close failed:", err)
+		}
 	}
 }
 
