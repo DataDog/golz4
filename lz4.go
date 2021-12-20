@@ -177,11 +177,12 @@ type reader struct {
 	isLeft           bool
 }
 
-// DEPRECATED: Use NewDecompressReader instead.
 // NewReader creates a new io.ReadCloser.  Reads from the returned ReadCloser
 // read and decompress data from r.  It is the caller's responsibility to call
 // Close on the ReadCloser when done.  If this is not done, underlying objects
 // in the lz4 library will not be freed.
+//
+// Deprecated: Use NewDecompressReader instead.
 func NewReader(r io.Reader) io.ReadCloser {
 	return &reader{
 		lz4Stream:        C.LZ4_createStreamDecode(),
