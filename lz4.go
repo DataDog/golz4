@@ -254,7 +254,8 @@ func (r *reader) Read(dst []byte) (int, error) {
 	))
 
 	if decompressed < 0 {
-		return decompressed, errors.New("error decompressing")
+		// io.Reader requires Read to return a value in range [0, len(dst)]
+		return 0, fmt.Errorf("error decompressing; result=%d", decompressed)
 	}
 
 	mySlice := C.GoBytes(ptr, C.int(decompressed))
