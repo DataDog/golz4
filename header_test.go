@@ -15,7 +15,7 @@ import (
 // test extended compression/decompression w/ headers
 
 func TestCompressHdrRatio(t *testing.T) {
-	input, err := ioutil.ReadFile("sample.txt")
+	input, err := ioutil.ReadFile(sampleFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestPythonInterop(t *testing.T) {
 		return
 	}
 
-	corpus, err := ioutil.ReadFile("sample.txt")
+	corpus, err := ioutil.ReadFile(sampleFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}

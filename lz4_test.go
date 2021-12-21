@@ -11,12 +11,15 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"testing"
 	"testing/quick"
 )
+
+const sampleFilePath = "./testdata/sample.txt"
 
 var plaintext0 = []byte("jkoedasdcnegzb.,ewqegmovobspjikodecedegds[]")
 
@@ -29,7 +32,7 @@ func failOnError(t *testing.T, msg string, err error) {
 }
 
 func TestCompressionRatio(t *testing.T) {
-	input, err := ioutil.ReadFile("sample.txt")
+	input, err := ioutil.ReadFile(sampleFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,10 +259,12 @@ func TestSimpleCompressDecompressSmallBuffer(t *testing.T) {
 }
 
 func TestIOCopyStreamSimpleCompressionDecompression(t *testing.T) {
-	filename := "sample.txt"
-	inputs, _ := os.Open(filename)
+	inputs, err := os.Open(sampleFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	testIOCopy(t, inputs, filename)
+	testIOCopy(t, inputs, sampleFilePath)
 }
 
 func testIOCopy(t *testing.T, src io.Reader, filename string) {
@@ -339,26 +344,29 @@ type testfilenames struct {
 func TestDecompConcurrently(t *testing.T) {
 	var tests []testfilenames
 	// create decomp test file
-	filename := "sample.txt"
-	decompfilename := filename + "testcom.lz4"
+	decompFileName := filepath.Join(t.TempDir(), "testcom.lz4")
 
-	src, _ := os.Open(filename)
-	file, err := os.Create(decompfilename)
+	src, err := os.Open(sampleFilePath)
+	failOnError(t, "Failed opening input", err)
+	file, err := os.Create(decompFileName)
 	failOnError(t, "Failed creating to file", err)
 	writer := NewWriter(file)
 	_, err = io.Copy(writer, src)
 	failOnError(t, "Failed witting to file", err)
 
 	failOnError(t, "Failed to close compress object", writer.Close())
-	stat, err := os.Stat(filename)
+	inputStat, err := os.Stat(sampleFilePath)
 	failOnError(t, "Stat failed", err)
-	filenameSize, err := os.Stat(filename)
+	outputStat, err := os.Stat(decompFileName)
 	failOnError(t, "Stat failed", err)
 
-	t.Logf("Compressed %v -> %v bytes", filenameSize.Size(), stat.Size())
+	t.Logf("Compressed %v -> %v bytes", inputStat.Size(), outputStat.Size())
+	if !(outputStat.Size() < inputStat.Size()) {
+		t.Errorf("Compressed size %d must be less than input size %d",
+			outputStat.Size(), inputStat.Size())
+	}
 
 	file.Close()
-	defer os.Remove(decompfilename)
 
 	// run 100 times
 	for i := 0; i < 100; i++ {
@@ -374,7 +382,7 @@ func TestDecompConcurrently(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 
-			IOCopyDecompressionwithName(t, tc.filename, filename, decompfilename)
+			IOCopyDecompressionwithName(t, tc.filename, sampleFilePath, decompFileName)
 		})
 	}
 

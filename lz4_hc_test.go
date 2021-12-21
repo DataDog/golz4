@@ -13,7 +13,7 @@ import (
 )
 
 func TestCompressionHCRatio(t *testing.T) {
-	input, err := ioutil.ReadFile("sample.txt")
+	input, err := ioutil.ReadFile(sampleFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestCompressionHCRatio(t *testing.T) {
 }
 
 func TestCompressionHCLevels(t *testing.T) {
-	input, err := ioutil.ReadFile("sample.txt")
+	input, err := ioutil.ReadFile(sampleFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
