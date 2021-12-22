@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // test extended compression/decompression w/ headers
@@ -97,6 +99,31 @@ func TestUncompressHdrShort(t *testing.T) {
 		if err != errTooShort {
 			t.Errorf("UncompressHdr(output, [%d zero bytes]) returned unexpected err=%v",
 				len(tooShortInput), err)
+		}
+	}
+}
+
+func TestCompressAllocHdr(t *testing.T) {
+	// test compressing a set of random sized inputs
+	inBuf := make([]byte, 70*1024)
+	for i := range inBuf {
+		inBuf[i] = byte(i)
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 1000; i++ {
+		inSize := rng.Intn(len(inBuf))
+		compressed, err := CompressAllocHdr(inBuf[:inSize])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		uncompressed, err := UncompressAllocHdr(nil, compressed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(uncompressed, inBuf[:inSize]) {
+			t.Fatal("uncompressed != input")
 		}
 	}
 }
