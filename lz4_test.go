@@ -597,13 +597,16 @@ func BenchmarkStreamCompressReader(b *testing.B) {
 	}
 }
 
-func BenchmarkStreamUncompress(b *testing.B) {
+func BenchmarkDeprecatedStreamUncompress(b *testing.B) {
 	var compressedBuffer bytes.Buffer
-	r := NewCompressReader(io.LimitReader(Null, 10*1024*1024))
-	if _, err := io.Copy(&compressedBuffer, r); err != nil {
-		b.Fatalf("Failed writing to compress object: %s", err)
+	w := NewWriter(&compressedBuffer)
+	if _, err := io.Copy(w, io.LimitReader(Null, 10*1024*1024)); err != nil {
+		b.Fatalf("Failed writing to NewWriter: %s", err)
 	}
-	r.Close()
+	err := w.Close()
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
