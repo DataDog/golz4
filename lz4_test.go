@@ -14,6 +14,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"testing/quick"
 )
@@ -369,15 +370,18 @@ func TestDecompConcurrently(t *testing.T) {
 		}
 		tests = append(tests, tmp)
 	}
-	t.Parallel()
+
+	// start goroutines to check decompressing in parallel
+	wg := &sync.WaitGroup{}
 	for _, tc := range tests {
 		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			IOCopyDecompressionwithName(t, tc.filename, filename, decompfilename)
-		})
+		}()
 	}
-
+	wg.Wait()
 }
 
 func IOCopyDecompressionwithName(t *testing.T, fileoutcomename string, originalfileName string, decompfilename string) {
