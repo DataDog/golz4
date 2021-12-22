@@ -310,8 +310,14 @@ func TestSimpleCompressDecompressSmallBuffer(t *testing.T) {
 	// Compress and Decompress
 	bufOut := bytes.NewBuffer(nil) // out buffer
 	// read -> compress -> decompress pipeline
-	_, err := io.Copy(bufOut, NewDecompressReader(NewCompressReader(dataBuf)))
+	compressReader := NewCompressReader(dataBuf)
+	decompressReader := NewDecompressReader(compressReader)
+	_, err := io.Copy(bufOut, decompressReader)
 	failOnError(t, "Failed writing to file", err)
+	err = compressReader.Close()
+	failOnError(t, "Failed closing compressReader", err)
+	err = decompressReader.Close()
+	failOnError(t, "Failed closing decompressReader", err)
 
 	// assert we got out what we put it
 	if bufOut.String() != data.String() {
@@ -413,7 +419,7 @@ func TestDecompConcurrently(t *testing.T) {
 	failOnError(t, "Failed creating to file", err)
 	writer := NewWriter(file)
 	_, err = io.Copy(writer, src)
-	failOnError(t, "Failed witting to file", err)
+	failOnError(t, "Failed writing to file", err)
 
 	failOnError(t, "Failed to close compress object", writer.Close())
 	inputStat, err := os.Stat(sampleFilePath)
@@ -465,7 +471,6 @@ func IOCopyDecompressionwithName(t *testing.T, fileoutcomename string, originalf
 	// Decompress with streaming API
 	r := NewReader(fi)
 	_, err = io.Copy(fileNew, r)
-
 	failOnError(t, "Failed writing to file", err)
 
 	if !checkfilecontentIsSame(t, originalfileName, fileoutcomename) {
@@ -474,10 +479,11 @@ func IOCopyDecompressionwithName(t *testing.T, fileoutcomename string, originalf
 		t.Fatalf("%s VS %s contents not same, size: %d VS %d", originalfileName, fileoutcomename, info1.Size(), info2.Size())
 
 	}
-	r.Close()
+	err = r.Close()
+	failOnError(t, "Failed closing reader", err)
+
 	fileNew.Close()
 	os.Remove(fileoutcomename)
-
 }
 
 func TestContinueCompress(t *testing.T) {
@@ -668,7 +674,10 @@ func BenchmarkStreamCompress(b *testing.B) {
 			b.Fatalf("Failed writing to compress object: %s", err)
 		}
 		b.SetBytes(10 * 1024 * 1024)
-		w.Close()
+		err := w.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -682,7 +691,10 @@ func BenchmarkStreamCompressReader(b *testing.B) {
 			b.Fatalf("Failed writing to compress object: %s", err)
 		}
 		b.SetBytes(10 * 1024 * 1024)
-		r.Close()
+		err := r.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -705,7 +717,10 @@ func BenchmarkDeprecatedStreamUncompress(b *testing.B) {
 			b.Fatalf("Failed writing to compress object: %s", err)
 		}
 		b.SetBytes(10 * 1024 * 1024)
-		r.Close()
+		err = r.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -715,7 +730,10 @@ func BenchmarkStreamDecompressReader(b *testing.B) {
 	if _, err := io.Copy(&compressedBuffer, r); err != nil {
 		b.Fatalf("Failed writing to compress object: %s", err)
 	}
-	r.Close()
+	err := r.Close()
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -725,6 +743,9 @@ func BenchmarkStreamDecompressReader(b *testing.B) {
 			b.Fatalf("Failed writing to compress object: %s", err)
 		}
 		b.SetBytes(10 * 1024 * 1024)
-		r.Close()
+		err = r.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
