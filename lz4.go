@@ -182,7 +182,8 @@ type reader struct {
 // Close on the ReadCloser when done.  If this is not done, underlying objects
 // in the lz4 library will not be freed.
 //
-// Deprecated: Use NewDecompressReader instead.
+// Deprecated: Use NewDecompressReader instead. It can decompress the output
+// of NewWriter, but uses fewer allocations.
 func NewReader(r io.Reader) io.ReadCloser {
 	return &reader{
 		lz4Stream:        C.LZ4_createStreamDecode(),
@@ -309,7 +310,8 @@ type CompressReader struct {
 // NewCompressReader creates a new io.ReadCloser.  Reads from the returned ReadCloser
 // read and compress data from r.  It is the caller's responsibility to call
 // Close on the ReadCloser when done.  If this is not done, underlying objects
-// in the lz4 library will not be freed.
+// in the lz4 library will not be freed. The compressed output must be decompressed
+// using NewDecompressReader.
 func NewCompressReader(r io.Reader) *CompressReader {
 	return &CompressReader{
 		compressionBuffer: [2]unsafe.Pointer{
