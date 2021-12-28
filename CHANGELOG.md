@@ -1,5 +1,20 @@
 # golz4 CHANGELOG
 
+## v1.3.0
+
+* Fixes the bug in Writer that was introduced in v1.2.0. [PR 19](https://github.com/DataDog/golz4/pull/19)
+* Fixes a bug in how LZ4 buffers are passed to LZ4_compress_fast_continue. This bug depends on the malloc implementation. It seems rare to be triggered using glibc on Linux, but common using malloc on Mac OS X. However, this bug could happen on all systems. [PR 19](https://github.com/DataDog/golz4/pull/19), [PR 27](https://github.com/DataDog/golz4/pull/27)
+* Fixes Reader to never return an negative byte count from Read. [PR 20](https://github.com/DataDog/golz4/pull/20)
+* Removes an unused field from Writer and CompressReader. [PR 28](https://github.com/DataDog/golz4/pull/28)
+* Updated tests to use python3. [PR 15](https://github.com/DataDog/golz4/pull/15)
+* A variety of small fixes to the unit tests, including additional test coverage, and fixing the benchmarks so they run.
+
+
+## v1.2.0
+
+* *DO NOT USE*: Fixed go vet warnings about unsafe use of SliceHeader. Added a bug to Writer. [PR 17](https://github.com/DataDog/golz4/pull/17)
+
+
 ## v1.1.0
 
 * Introduces new Readers, CompressReader and DecompressReader
