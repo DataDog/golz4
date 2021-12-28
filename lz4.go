@@ -102,9 +102,10 @@ func NewWriter(w io.Writer) *Writer {
 
 	// separate the buffers by 8 bytes, so LZ4 treats them as separate. 8 bytes means the buffer
 	// start is 8 byte aligned, which may permit optimizations on 64-bit CPUs.
-	mallocBuffer := C.malloc(2*streamingBlockSize + 8)
+	const bufferSeparation = 8
+	mallocBuffer := C.malloc(2*streamingBlockSize + bufferSeparation)
 	buffer1 := mallocBuffer
-	buffer2 := unsafe.Pointer(uintptr(mallocBuffer) + streamingBlockSize + 8)
+	buffer2 := unsafe.Pointer(uintptr(mallocBuffer) + streamingBlockSize + bufferSeparation)
 
 	return &Writer{
 		compressionBuffer: [2]unsafe.Pointer{buffer1, buffer2},
@@ -321,6 +322,7 @@ func (r *reader) readFromPending(dst []byte) (int, error) {
 type CompressReader struct {
 	underlyingReader       io.Reader
 	compressionBuffer      [2]unsafe.Pointer
+	mallocBuffer           unsafe.Pointer
 	outputBuffer           *bytes.Reader
 	lz4Stream              *C.LZ4_stream_t
 	inpBufIndex            int
@@ -334,15 +336,27 @@ type CompressReader struct {
 // in the lz4 library will not be freed. The compressed output must be decompressed
 // using NewDecompressReader.
 func NewCompressReader(r io.Reader) *CompressReader {
+	// The input buffers MUST NOT be contiguous in memory so the two blocks are treated as separate.
+	// We had a bug in Writer when malloc decided to allocate buffers contiguously. This bug does
+	// not happen with CompressReader, because we only have "partial" blocks at EOF, and we need two
+	// calls to LZ4_compress_fast_continue with sizes < 64 kiB to trigger the problem. However, we
+	// should separate these buffers explicitly, to make this impossible. For details, see the
+	// comment in NewWriter.
+
+	// separate the buffers by 8 bytes, so LZ4 treats them as separate. 8 bytes means the buffer
+	// start is 8 byte aligned, which may permit optimizations on 64-bit CPUs.
+	const bufferSeparation = 8
+	mallocBuffer := C.malloc(2*hugeStreamingBlockSize + bufferSeparation)
+	buffer1 := mallocBuffer
+	buffer2 := unsafe.Pointer(uintptr(mallocBuffer) + hugeStreamingBlockSize + bufferSeparation)
+
 	return &CompressReader{
-		compressionBuffer: [2]unsafe.Pointer{
-			C.malloc(hugeStreamingBlockSize),
-			C.malloc(hugeStreamingBlockSize),
-		},
-		lz4Stream:        C.LZ4_createStream(),
-		underlyingReader: r,
-		outputBuffer:     bytes.NewReader(nil),
-		compressedBuffer: C.malloc(boundedHugeStreamingBlockSize + blockHeaderSize),
+		compressionBuffer: [2]unsafe.Pointer{buffer1, buffer2},
+		mallocBuffer:      mallocBuffer,
+		lz4Stream:         C.LZ4_createStream(),
+		underlyingReader:  r,
+		outputBuffer:      bytes.NewReader(nil),
+		compressedBuffer:  C.malloc(boundedHugeStreamingBlockSize + blockHeaderSize),
 	}
 }
 
@@ -408,10 +422,12 @@ func (r *CompressReader) Close() error {
 	if r.lz4Stream != nil {
 		C.LZ4_freeStream(r.lz4Stream)
 		r.lz4Stream = nil
+		C.free(r.mallocBuffer)
+		r.mallocBuffer = nil
+		C.free(r.compressedBuffer)
+		r.compressedBuffer = nil
 	}
-	C.free(r.compressionBuffer[0])
-	C.free(r.compressionBuffer[1])
-	C.free(r.compressedBuffer)
+
 	return nil
 }
 
