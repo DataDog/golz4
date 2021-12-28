@@ -75,12 +75,11 @@ func Compress(out, in []byte) (outSize int, err error) {
 
 // Writer is an io.WriteCloser that lz4 compress its input.
 type Writer struct {
-	compressionBuffer      [2]unsafe.Pointer
-	mallocBuffer           unsafe.Pointer
-	lz4Stream              *C.LZ4_stream_t
-	underlyingWriter       io.Writer
-	inpBufIndex            int
-	totalCompressedWritten int
+	compressionBuffer [2]unsafe.Pointer
+	mallocBuffer      unsafe.Pointer
+	lz4Stream         *C.LZ4_stream_t
+	underlyingWriter  io.Writer
+	inpBufIndex       int
 }
 
 // NewWriter creates a new Writer. Writes to
@@ -166,7 +165,6 @@ func (w *Writer) writeFrame(src []byte) (int, error) {
 		return 0, err
 	}
 
-	w.totalCompressedWritten += written + 4
 	return len(src), nil
 }
 
@@ -319,13 +317,12 @@ func (r *reader) readFromPending(dst []byte) (int, error) {
 // CompressReader reads input and creates an io.ReadCloser for reading
 // compressed output
 type CompressReader struct {
-	underlyingReader       io.Reader
-	compressionBuffer      [2]unsafe.Pointer
-	outputBuffer           *bytes.Reader
-	lz4Stream              *C.LZ4_stream_t
-	inpBufIndex            int
-	totalCompressedWritten int
-	compressedBuffer       unsafe.Pointer
+	underlyingReader  io.Reader
+	compressionBuffer [2]unsafe.Pointer
+	outputBuffer      *bytes.Reader
+	lz4Stream         *C.LZ4_stream_t
+	inpBufIndex       int
+	compressedBuffer  unsafe.Pointer
 }
 
 // NewCompressReader creates a new io.ReadCloser.  Reads from the returned ReadCloser
@@ -393,7 +390,6 @@ func (r *CompressReader) Read(dst []byte) (int, error) {
 	// here we ignore any EOF because the buffer contains partial data only
 	// EOF will be communicated on the next call if the underlying Reader is exhausted
 
-	r.totalCompressedWritten += written + 4
 	return n, nil
 }
 
