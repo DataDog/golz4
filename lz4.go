@@ -99,8 +99,8 @@ func NewWriter(w io.Writer) *Writer {
 	// with some space between them. However, on Mac OS X, the buffers are often contiguous.
 	// See: https://github.com/lz4/lz4/issues/473#issuecomment-366537441
 
-	// separate the buffers by 8 bytes, so LZ4 treats them as separate. 8 bytes means the buffer
-	// start is 8 byte aligned, which may permit optimizations on 64-bit CPUs.
+	// Separate the buffers so LZ4 treats them as separate. Use 8 bytes to maintain 8 byte alignment,
+	// assuming malloc's result was aligned. This may permit optimizations on 64-bit CPUs.
 	const bufferSeparation = 8
 	mallocBuffer := C.malloc(2*streamingBlockSize + bufferSeparation)
 	buffer1 := mallocBuffer
@@ -340,8 +340,8 @@ func NewCompressReader(r io.Reader) *CompressReader {
 	// should separate these buffers explicitly, to make this impossible. For details, see the
 	// comment in NewWriter.
 
-	// separate the buffers by 8 bytes, so LZ4 treats them as separate. 8 bytes means the buffer
-	// start is 8 byte aligned, which may permit optimizations on 64-bit CPUs.
+	// Separate the buffers so LZ4 treats them as separate. Use 8 bytes to maintain 8 byte alignment,
+	// assuming malloc's result was aligned. This may permit optimizations on 64-bit CPUs.
 	const bufferSeparation = 8
 	mallocBuffer := C.malloc(2*hugeStreamingBlockSize + bufferSeparation)
 	buffer1 := mallocBuffer
