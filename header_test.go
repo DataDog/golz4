@@ -5,17 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // test extended compression/decompression w/ headers
 
 func TestCompressHdrRatio(t *testing.T) {
-	input, err := ioutil.ReadFile("sample.txt")
+	input, err := ioutil.ReadFile(sampleFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +103,31 @@ func TestUncompressHdrShort(t *testing.T) {
 	}
 }
 
+func TestCompressAllocHdr(t *testing.T) {
+	// test compressing a set of random sized inputs
+	inBuf := make([]byte, 70*1024)
+	for i := range inBuf {
+		inBuf[i] = byte(i)
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 1000; i++ {
+		inSize := rng.Intn(len(inBuf))
+		compressed, err := CompressAllocHdr(inBuf[:inSize])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		uncompressed, err := UncompressAllocHdr(nil, compressed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(uncompressed, inBuf[:inSize]) {
+			t.Fatal("uncompressed != input")
+		}
+	}
+}
+
 // test python interoperability
 
 // pymod returns whether or not a python module is importable.  For checking
@@ -132,7 +159,7 @@ func TestPythonInterop(t *testing.T) {
 		return
 	}
 
-	corpus, err := ioutil.ReadFile("sample.txt")
+	corpus, err := ioutil.ReadFile(sampleFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
