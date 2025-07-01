@@ -73,6 +73,100 @@ func Compress(out, in []byte) (outSize int, err error) {
 	return
 }
 
+// DecompressInplaceMargin calculates the margin needed for in-place decompression.
+// This is based on the LZ4_DECOMPRESS_INPLACE_MARGIN macro.
+func DecompressInplaceMargin(compressedSize int) int {
+	return (compressedSize >> 8) + 32
+}
+
+// DecompressInplaceBufferSize calculates the minimum buffer size needed for in-place decompression.
+// This is based on the LZ4_DECOMPRESS_INPLACE_BUFFER_SIZE macro.
+// The buffer size must be >= LZ4_DECOMPRESS_INPLACE_BUFFER_SIZE(decompressedSize).
+// Note: This presumes that compressedSize < decompressedSize.
+func DecompressInplaceBufferSize(decompressedSize int) int {
+	return decompressedSize + DecompressInplaceMargin(decompressedSize)
+}
+
+// CompressInplaceMargin is the margin needed for in-place compression.
+// This is based on LZ4_COMPRESS_INPLACE_MARGIN.
+const CompressInplaceMargin = 65535 + 32 // LZ4_DISTANCE_MAX + 32
+
+// CompressInplaceBufferSize calculates the minimum buffer size needed for in-place compression.
+// This is based on the LZ4_COMPRESS_INPLACE_BUFFER_SIZE macro.
+// maxCompressedSize is generally LZ4_COMPRESSBOUND(inputSize), but can be set to any lower value,
+// with the risk that compression can fail (return code 0).
+func CompressInplaceBufferSize(maxCompressedSize int) int {
+	return maxCompressedSize + CompressInplaceMargin
+}
+
+// UncompressInplace decompresses compressed data in-place within the same buffer.
+// The buffer must be structured as follows:
+// - Compressed data at the end of the buffer
+// - Decompressed output will be written at the beginning of the buffer
+// - Buffer size must be >= DecompressInplaceBufferSize(decompressedSize)
+//
+// Parameters:
+// - buffer: the buffer containing compressed data at the end, and space for decompressed data at the beginning
+// - compressedSize: size of the compressed data
+// - decompressedSize: expected size of the decompressed data
+// - compressedOffset: offset in the buffer where compressed data starts
+//
+// Returns the number of bytes decompressed, or error if decompression fails.
+func UncompressInplace(buffer []byte, compressedSize, decompressedSize, compressedOffset int) (outSize int, err error) {
+	if len(buffer) < DecompressInplaceBufferSize(decompressedSize) {
+		return 0, errors.New("Buffer too small for in-place decompression")
+	}
+	if compressedOffset+compressedSize > len(buffer) {
+		return 0, errors.New("Compressed data exceeds buffer bounds")
+	}
+	if decompressedSize > compressedOffset {
+		return 0, errors.New("Decompressed size would overlap with compressed data")
+	}
+
+	compressedPtr := p(buffer[compressedOffset:compressedOffset+compressedSize])
+	decompressedPtr := p(buffer[:decompressedSize])
+
+	outSize = int(C.LZ4_decompress_safe(compressedPtr, decompressedPtr, clen(buffer[compressedOffset:compressedOffset+compressedSize]), C.int(decompressedSize)))
+	if outSize < 0 {
+		err = errors.New("Malformed compression stream")
+	}
+	return
+}
+
+// CompressInplace compresses data in-place within the same buffer.
+// The buffer must be structured as follows:
+// - Input data at the end of the buffer  
+// - Compressed output will be written at the beginning of the buffer
+// - Buffer size must be >= CompressInplaceBufferSize(maxCompressedSize)
+//
+// Parameters:
+// - buffer: the buffer containing input data at the end, and space for compressed data at the beginning
+// - inputSize: size of the input data
+// - maxCompressedSize: maximum size allowed for compressed output (typically CompressBound(inputSize))
+// - inputOffset: offset in the buffer where input data starts
+//
+// Returns the number of bytes compressed, or error if compression fails.
+func CompressInplace(buffer []byte, inputSize, maxCompressedSize, inputOffset int) (outSize int, err error) {
+	if len(buffer) < CompressInplaceBufferSize(maxCompressedSize) {
+		return 0, errors.New("Buffer too small for in-place compression")
+	}
+	if inputOffset+inputSize > len(buffer) {
+		return 0, errors.New("Input data exceeds buffer bounds")
+	}
+	if maxCompressedSize > inputOffset {
+		return 0, errors.New("Max compressed size would overlap with input data")
+	}
+
+	inputPtr := p(buffer[inputOffset:inputOffset+inputSize])
+	compressedPtr := p(buffer[:maxCompressedSize])
+
+	outSize = int(C.LZ4_compress_default(inputPtr, compressedPtr, clen(buffer[inputOffset:inputOffset+inputSize]), C.int(maxCompressedSize)))
+	if outSize == 0 {
+		err = errors.New("Insufficient space for compression or compression failed")
+	}
+	return
+}
+
 // Writer is an io.WriteCloser that lz4 compress its input.
 type Writer struct {
 	compressionBuffer [2]unsafe.Pointer
