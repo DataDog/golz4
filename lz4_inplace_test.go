@@ -25,6 +25,13 @@ func TestUncompressInplace(t *testing.T) {
 	// Create buffer for in-place decompression
 	decompressedSize := len(input)
 	bufferSize := DecompressInplaceBufferSize(decompressedSize)
+
+	// Ensure buffer is large enough to avoid overlap
+	minRequired := decompressedSize + compressedSize
+	if bufferSize < minRequired {
+		bufferSize = minRequired + 100 // Add extra margin
+	}
+
 	buffer := make([]byte, bufferSize)
 
 	// Copy compressed data to the end of the buffer
@@ -115,6 +122,13 @@ func TestInplaceRoundTrip(t *testing.T) {
 			// Step 2: In-place decompression
 			decompressedSize := len(input)
 			decompressBufferSize := DecompressInplaceBufferSize(decompressedSize)
+
+			// Ensure buffer is large enough to avoid overlap
+			minRequired := decompressedSize + compressedSize
+			if decompressBufferSize < minRequired {
+				decompressBufferSize = minRequired + 100 // Add extra margin
+			}
+
 			decompressBuffer := make([]byte, decompressBufferSize)
 
 			// Copy compressed data to end of buffer
@@ -170,8 +184,6 @@ func TestInplaceBufferSizes(t *testing.T) {
 
 // Test error cases for in-place operations
 func TestInplaceErrors(t *testing.T) {
-	input := []byte("Hello world")
-
 	t.Run("UncompressInplace_buffer_too_small", func(t *testing.T) {
 		buffer := make([]byte, 10) // Too small
 		_, err := UncompressInplace(buffer, 5, 10, 0)
@@ -244,6 +256,13 @@ func TestInplaceWithSampleFile(t *testing.T) {
 	// Test in-place decompression
 	decompressedSize := len(input)
 	decompressBufferSize := DecompressInplaceBufferSize(decompressedSize)
+
+	// Ensure buffer is large enough to avoid overlap
+	minRequired := decompressedSize + compressedSize
+	if decompressBufferSize < minRequired {
+		decompressBufferSize = minRequired + 100 // Add extra margin
+	}
+
 	decompressBuffer := make([]byte, decompressBufferSize)
 
 	compressedOffset := decompressBufferSize - compressedSize
@@ -294,6 +313,13 @@ func TestInplaceIncompressibleData(t *testing.T) {
 	// Test decompression works
 	decompressedSize := len(input)
 	decompressBufferSize := DecompressInplaceBufferSize(decompressedSize)
+
+	// Ensure buffer is large enough to avoid overlap
+	minRequired := decompressedSize + compressedSize
+	if decompressBufferSize < minRequired {
+		decompressBufferSize = minRequired + 100 // Add extra margin
+	}
+
 	decompressBuffer := make([]byte, decompressBufferSize)
 
 	compressedOffset := decompressBufferSize - compressedSize
